@@ -1,0 +1,109 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>CloudMart</title>
+</head>
+<body>
+  <h1>CloudMart Products</h1>
+
+  <label>Filter by category:</label>
+  <select id="category-select">
+    <option value="">All</option>
+    <option value="Electronics">Electronics</option>
+    <option value="Home">Home</option>
+  </select>
+  <button onclick="loadProducts()">Filter</button>
+
+  <h2>Product List</h2>
+  <div id="products"></div>
+
+  <h2>Cart</h2>
+  <div id="cart"></div>
+
+  <button onclick="placeOrder()">Place Order</button>
+
+  <h2>Orders</h2>
+  <div id="orders"></div>
+
+  <script>
+    async function loadProducts() {
+      const cat = document.getElementById("category-select").value;
+      const url = cat
+        ? `/api/v1/products?category=${encodeURIComponent(cat)}`
+        : "/api/v1/products";
+      const res = await fetch(url);
+      const data = await res.json();
+      const div = document.getElementById("products");
+      div.innerHTML = "";
+      data.forEach((p) => {
+        const item = document.createElement("div");
+        item.innerHTML = `${p.name} - $${p.price.toFixed(
+          2
+        )} <button onclick="addToCart('${p.id}')">Add</button>`;
+        div.appendChild(item);
+      });
+    }
+
+    async function addToCart(productId) {
+      await fetch("/api/v1/cart/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: productId, quantity: 1 }),
+      });
+      await loadCart();
+    }
+
+    async function loadCart() {
+      const res = await fetch("/api/v1/cart");
+      const data = await res.json();
+      const div = document.getElementById("cart");
+      div.innerHTML = "";
+      data.forEach((item) => {
+        const d = document.createElement("div");
+        d.innerHTML = `Item: ${item.product_id} x ${item.quantity}`;
+        div.appendChild(d);
+      });
+    }
+
+    async function placeOrder() {
+      const resCart = await fetch("/api/v1/cart");
+      const cartItems = await resCart.json();
+      if (cartItems.length === 0) {
+        alert("Cart is empty");
+        return;
+      }
+      const orderItems = cartItems.map((c) => ({
+        product_id: c.product_id,
+        quantity: c.quantity,
+        price: 0,
+      }));
+      await fetch("/api/v1/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: orderItems }),
+      });
+      await loadCart();
+      await loadOrders();
+    }
+
+    async function loadOrders() {
+      const res = await fetch("/api/v1/orders");
+      const data = await res.json();
+      const div = document.getElementById("orders");
+      div.innerHTML = "";
+      data.forEach((o) => {
+        const d = document.createElement("div");
+        d.innerHTML = `Order: ${o.id} - status: ${o.status} - items: ${o.items.length}`;
+        div.appendChild(d);
+      });
+    }
+
+    window.onload = async () => {
+      await loadProducts();
+      await loadCart();
+      await loadOrders();
+    };
+  </script>
+</body>
+</html>
