@@ -1,1 +1,48 @@
- 
+name: Deploy to Azure Container Instances
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t ${{ secrets.DOCKERHUB_USERNAME }}/cloudmart-api:${{ github.sha }} .
+          docker tag ${{ secrets.DOCKERHUB_USERNAME }}/cloudmart-api:${{ github.sha }} ${{ secrets.DOCKERHUB_USERNAME }}/cloudmart-api:latest
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudmart-api:${{ github.sha }}
+          docker push ${{ secrets.DOCKERHUB_USERNAME }}/cloudmart-api:latest
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to ACI
+        uses: azure/aci-deploy@v1
+        with:
+          resource-group: Student-RG-XXXXX          # <-- put your exact RG name
+          name: cloudmart-app                       # ACI name
+          image: ${{ secrets.DOCKERHUB_USERNAME }}/cloudmart-api:latest
+          dns-name-label: cloudmart-${{ github.actor }}
+          location: canadaeast
+          ports: 80
+          environment-variables: |
+            COSMOS_ENDPOINT=${{ secrets.COSMOS_ENDPOINT }}
+            COSMOS_KEY=${{ secrets.COSMOS_KEY }}
+            COSMOS_DATABASE=cloudmart
+            COSMOS_PRODUCTS_CONTAINER=products
+            COSMOS_CART_CONTAINER=cart
+            COSMOS_ORDERS_CONTAINER=orders
